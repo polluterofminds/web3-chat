@@ -2,15 +2,34 @@ import React, { useState, useEffect } from 'react'
 import styles from "./Chat.module.css";
 import { init, useLazyQueryWithPagination, fetchQuery } from "@airstack/airstack-react";
 
-init("YOUR AIRSTACK API KEY");
+init("29e4514124794cfba1002e869484a59e");
 
 const Contacts = (props) => {
   const [contacts, setContacts] = useState([]);
   const [profileName, setProfileName] = useState("");
   const [results, setResults] = useState([]);
-  const [query, setQuery] = useState("");
-  const [fetchData, { data, loading, pagination }] = useLazyQueryWithPagination(
-    query
+  const [variables, setVariables] = useState({
+    name: ""
+  })
+
+  const lensQuery = `query LensUser($name: Identity!) {
+    Wallet(input: {identity: $name, blockchain: ethereum}) {
+      addresses
+    }
+  }`
+
+  const fcQuery = `query FarcasterUser($name: Identity!)  {
+    Wallet(input: {identity: $name, blockchain: ethereum}) {
+      addresses
+    }
+  }`
+
+  const [fetchLensUser, { data: lensData, loading: lensLoading, pagination: lensPagination }] = useLazyQueryWithPagination(
+    lensQuery, variables
+  );
+
+  const [fetchFCUser, { data: fcData, loading: fcLoading, pagination: fcPagination }] = useLazyQueryWithPagination(
+    fcQuery, variables
   );
 
   useEffect(() => {
@@ -31,6 +50,7 @@ const Contacts = (props) => {
     }
     `
     const response = await fetchQuery(newQuery)  
+    
     if(response.data.Wallet.socials && response.data.Wallet.socials.length > 0) {
       return response?.data?.Wallet?.socials[0].profileName 
     }
@@ -51,27 +71,25 @@ const Contacts = (props) => {
   }
   
   const searchForUsers = async function() {
-    const res = await fetchData();
+    let res;
+    if(profileName.includes(".lens")) {
+      res = await fetchLensUser(variables);
+    } else {
+      res = await fetchFCUser(variables);
+    }
+
     setResults(res?.data?.Wallet?.addresses || []);
   }
 
   const handleInputChange = (e) => {
     setResults([]);
-    setProfileName(e.target.value);
-    if(e.target.value.includes(".lens")) {
-      setQuery(`query lensUser {
-        Wallet(input: {identity: "${e.target.value}", blockchain: ethereum}) {
-          addresses
-        }
-      }`)
-    } else {
-      setQuery(`query farcasterProfile  {
-        Wallet(input: {identity: "fc_fname:${e.target.value}", blockchain: ethereum}) {
-          addresses
-        }
-      }`)
-    }
+    setProfileName(e.target.value);  
+    setVariables({
+      name: e.target.value.includes(".lens") ? e.target.value : `fc_fname:${e.target.value}`
+    })  
   }
+
+
 
   const setContactDetails = (contact) => {
     const clonedContacts = JSON.parse(JSON.stringify(contacts));
